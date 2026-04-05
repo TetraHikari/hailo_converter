@@ -7,18 +7,24 @@ env/
 *.whl
 
 # Keep compiled output
+output/*
+!output/.gitkeep
 !output/*.hef
 
 # Archive — ignore large model files but keep folder
-archieve/**/*.har
-archieve/**/*.hef
-archieve/**/*.onnx
+archieve/*
+!archieve/.gitkeep
 
 # Calibration data
-calib_npy/
+calib_npy/*
+!calib_npy/.gitkeep
 
-# Dataset
-dataset/
+# Dataset (download from Google Drive — see .env.example)
+dataset/*
+!dataset/.gitkeep
+
+# Env
+.env
 
 # Hailo model zoo
 hailo_model_zoo/

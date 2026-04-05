@@ -64,6 +64,29 @@ pip install hailo_dataflow_compiler-3.33.1-py3-none-linux_x86_64.whl
 pip install -e hailo_model_zoo/
 ```
 
+### 4. Download Dataset
+
+The dataset link is provided in `.env.example`. Copy it and download:
+
+```bash
+cp .env.example .env
+```
+
+Download from the URL in `DATASET_URL` and place contents into the `dataset/` folder:
+
+```
+dataset/
+├── train/
+│   ├── images/
+│   └── labels/
+├── valid/
+│   ├── images/
+│   └── labels/
+└── test/
+    ├── images/
+    └── labels/
+```
+
 ---
 
 ## Conversion
