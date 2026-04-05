@@ -20,7 +20,7 @@ from hailo_sdk_client import ClientRunner, InferenceContext
 WORK_DIR    = "/mnt/e/programs/convert"
 ONNX_PATH   = f"{WORK_DIR}/dataset/best.onnx"
 CALIB_DIR   = f"{WORK_DIR}/calib_npy"
-ALLS_PATH   = f"{WORK_DIR}/collab_model.alls"   # normalization + perf settings
+ALLS_PATH   = f"{WORK_DIR}/config/collab_model.alls"   # normalization + perf settings
 HW_ARCH     = "hailo8"
 MODEL_NAME  = "yolov8n_10cls"
 

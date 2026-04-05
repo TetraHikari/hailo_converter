@@ -6,6 +6,14 @@ env/
 *.log
 *.whl
 
+# Keep compiled output
+!output/*.hef
+
+# Archive — ignore large model files but keep folder
+archieve/**/*.har
+archieve/**/*.hef
+archieve/**/*.onnx
+
 # Calibration data
 calib_npy/
 
