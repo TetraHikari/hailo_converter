@@ -1,6 +1,6 @@
 # YOLOv8n → Hailo HEF Conversion Pipeline
 
-Converts a YOLOv8n ONNX model to a Hailo Executable Format (HEF) for deployment on Raspberry Pi 5 with a Hailo-8 M.2 accelerator.
+Converts a YOLOv8n ONNX model to a Hailo Executable Format (HEF) for deployment on Raspberry Pi 5 with a Hailo-8 M.2 accelerator. Detects fire, smoke, and other threat classes in real time.
 
 ---
 
@@ -10,18 +10,21 @@ Converts a YOLOv8n ONNX model to a Hailo Executable Format (HEF) for deployment 
 convert/
 ├── README.md
 ├── .gitignore
-├── camera_test.py          # Pi inference script (live camera + Hailo-8)
-├── convert_hailo.py        # Full conversion pipeline (ONNX → HAR → HEF)
-├── prepare_calib.py        # Stratified calibration data preparation
+├── .env.example                # Dataset URL template — copy to .env
+├── camera_test.py              # Pi inference script (live camera + Hailo-8)
+├── convert_hailo.py            # Full conversion pipeline (ONNX → HAR → HEF)
+├── prepare_calib.py            # Stratified calibration data preparation
 ├── config/
-│   ├── collab_model.alls   # Normalization + performance settings (active)
-│   └── fire_smoke.alls     # Alternative alls config
+│   ├── collab_model.alls       # Normalization + performance settings (active)
+│   └── fire_smoke.alls         # Alternative alls config
 ├── setup/
-│   ├── setup_hailo.sh      # Hailo DFC environment setup
-│   └── nvidia_toolkit.sh   # NVIDIA container toolkit setup
+│   ├── setup_hailo.sh          # Hailo DFC environment setup
+│   └── nvidia_toolkit.sh       # NVIDIA container toolkit setup
 ├── output/
-│   └── yolov8n_10cls.hef   # Compiled model (deploy this to Pi)
-└── archieve/               # Previous model iterations (large files gitignored)
+│   └── yolov8n_10cls.hef       # Compiled model — deploy this to Pi
+├── archieve/                   # Previous model iterations (contents gitignored)
+├── calib_npy/                  # Calibration data — generated locally (gitignored)
+└── dataset/                    # Training dataset — download separately (gitignored)
 ```
 
 ---
@@ -58,7 +61,7 @@ source env/bin/activate
 pip install hailo_dataflow_compiler-3.33.1-py3-none-linux_x86_64.whl
 ```
 
-### 3. Install Hailo Model Zoo (optional, for reference scripts)
+### 3. Install Hailo Model Zoo (optional)
 
 ```bash
 pip install -e hailo_model_zoo/
@@ -66,13 +69,11 @@ pip install -e hailo_model_zoo/
 
 ### 4. Download Dataset
 
-The dataset link is provided in `.env.example`. Copy it and download:
-
 ```bash
 cp .env.example .env
 ```
 
-Download from the URL in `DATASET_URL` and place contents into the `dataset/` folder:
+Open `.env` and use the `DATASET_URL` to download the dataset from Google Drive. Place the contents into the `dataset/` folder:
 
 ```
 dataset/
@@ -87,13 +88,29 @@ dataset/
     └── labels/
 ```
 
+### 5. Patch GPU Selector (one-time)
+
+The Hailo SDK rejects GPUs with >5% VRAM usage by default. Patch the threshold:
+
+In `env/lib/python3.12/site-packages/hailo_model_optimization/acceleras/utils/nvidia_smi_gpu_selector.py`, change:
+
+```python
+def select_least_used_gpu(max_memory_utilization=0.05):
+```
+to:
+```python
+def select_least_used_gpu(max_memory_utilization=0.90):
+```
+
+> Re-apply this patch if the virtual environment is recreated.
+
 ---
 
 ## Conversion
 
 ### Step 1 — Prepare Calibration Data
 
-Calibration data is used during quantization to minimize accuracy loss. The script stratifies sampling to oversample underrepresented classes (e.g. small flames).
+Stratified sampling ensures underrepresented classes (e.g. small flames) are well represented during quantization. Targets: 500 Ates, 200 Fire, 150 Fire Detection samples out of 1024 total.
 
 ```bash
 python prepare_calib.py
@@ -107,15 +124,15 @@ Output: 1024 `.npy` files saved to `calib_npy/`
 python convert_hailo.py
 ```
 
-This runs three stages automatically:
+Three stages run automatically:
 
 | Stage | Input | Output |
 |---|---|---|
 | Parse ONNX | `dataset/best.onnx` | `yolov8n_10cls.har` |
-| Optimize (quantize) | `yolov8n_10cls.har` + calibration data | `yolov8n_10cls_optimized.har` |
+| Optimize (quantize) | `yolov8n_10cls.har` + `calib_npy/` | `yolov8n_10cls_optimized.har` |
 | Compile | `yolov8n_10cls_optimized.har` | `yolov8n_10cls.hef` |
 
-> **Note:** Optimization runs at level 2 with GPU. Compilation uses CPU only and may take 30–60 minutes.
+> Optimization runs at level 2 with GPU. Compilation is CPU-only and may take 30–60 minutes.
 
 ---
 
@@ -139,14 +156,17 @@ scp camera_test.py ai@raspberrypi:/home/ai/Desktop/projects/dub-fire/AI/models/
 python camera_test.py
 ```
 
-Press `q` to quit, `s` to save a snapshot.
+| Key | Action |
+|---|---|
+| `q` | Quit |
+| `s` | Save snapshot |
 
 ---
 
 ## Model Details
 
 - **Architecture:** YOLOv8n
-- **Input:** 640×640 RGB (letterboxed from camera feed)
+- **Input:** 640×640 RGB (center-cropped and letterboxed from 1280×720 camera feed)
 - **Hardware target:** Hailo-8 (`hailo8`)
 - **Quantization:** INT8, optimization level 2
 
@@ -157,21 +177,21 @@ Press `q` to quit, `s` to save a snapshot.
 | 0 | Ates (flame) | Fire Detected |
 | 1 | Fire | Fire Detected |
 | 2 | Fire Detection | Fire Detected |
-| 3 | api | — |
-| 4 | car-crash | — |
-| 5 | fight | — |
-| 6 | knife | — |
-| 7 | no-fight | — |
-| 8 | pistol | — |
-| 9 | smoke | — |
+| 3 | api | ignored |
+| 4 | car-crash | ignored |
+| 5 | fight | ignored |
+| 6 | knife | ignored |
+| 7 | no-fight | ignored |
+| 8 | pistol | ignored |
+| 9 | smoke | ignored |
 
-> Classes 0, 1, and 2 are grouped into a single **"Fire Detected"** label in the inference script. Other classes are ignored.
+Classes 0, 1, and 2 are grouped into a single **"Fire Detected"** label. All other classes are silently ignored.
 
 ### Confidence Thresholds
 
 | Class Group | Threshold |
 |---|---|
-| Fire / Ates / Fire Detection / Smoke (0,1,2,9) | 0.12 |
+| Ates / Fire / Fire Detection / Smoke (0, 1, 2, 9) | 0.12 |
 | All other classes | 0.20 |
 
 ---
@@ -179,14 +199,13 @@ Press `q` to quit, `s` to save a snapshot.
 ## Troubleshooting
 
 **Hailo SDK falls back to CPU**
-The SDK rejects GPUs with >5% VRAM usage. The threshold has been patched to 90% in:
-```
-env/lib/python3.12/site-packages/hailo_model_optimization/acceleras/utils/nvidia_smi_gpu_selector.py
-```
-Re-apply this patch if the virtual environment is recreated.
+VRAM usage on a desktop GPU exceeds the SDK's default 5% idle threshold. Apply the GPU selector patch in Setup step 5.
 
 **Optimization level drops to 0**
 Requires 1024+ calibration samples. Run `prepare_calib.py` to regenerate.
 
 **Compiler timeout during cluster mapping**
-Normal — the compiler falls back to Auto-Merger automatically. Let it continue.
+Normal — the compiler automatically falls back to Auto-Merger. Let it continue.
+
+**Bounding boxes misaligned**
+Detections are drawn before the 90° display rotation is applied. Ensure `decode_outputs` is called with the original (pre-rotation) frame dimensions.
