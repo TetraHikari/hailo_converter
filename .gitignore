@@ -1,0 +1,22 @@
+# Virtual environment
+env/
+
+# Hailo build artifacts
+*.har
+*.log
+*.whl
+
+# Calibration data
+calib_npy/
+
+# Dataset
+dataset/
+
+# Hailo model zoo
+hailo_model_zoo/
+
+# Misc
+__pycache__/
+*.pyc
+image.png
+drive/
